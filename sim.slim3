@@ -1,0 +1,58 @@
+initialize() {
+defineConstant("dominance", 0); //recessive = 0; additive = 0.5;
+defineConstant("n", 10); //scaling factor
+defineConstant("m4s", 0.01*n); //if m4s>0, adaptive introgression; else, deleterious null
+initializeMutationRate(7e-9*n);
+initializeTreeSeq();
+//nonsynonymous drawn from a DFE from Kim et al.
+// importantly, SLiM computes the fitness of the heterozygote and homozygote as 1+sh and 1+s
+// dadi and others compute it as 1+2sh and 1+2s
+initializeMutationType("m1", dominance, "g", -0.01314833*n, 0.186);
+// initializeMutationType("m1", 0.5, "f", 0.0);
+//synonymous -- assumed neutral here
+initializeMutationType("m2", 0.5, "f", 0.0);
+//noncoding -- assumed neutral here
+//beneficial -- for the time being, is left out
+//genomic element: exon and uses a mixture of syn and nonsyn at a 1:2.31 ratio (Huber et al.)
+initializeGenomicElementType("g1", c(m2,m1), c(1.0,2.31));
+//genomic element: intron
+initializeGenomicElementType("g2", c(m2), c(1.0));
+//genomic element: intergenic
+initializeGenomicElementType("g3", c(m2), c(1.0));
+// Generate random genes along an approximately 100000-base chromosome
+base = 0;
+while (base < 1000000) {
+  // make a non-coding region
+  nc_length = rdunif(1, 100, 5000);
+  initializeGenomicElement(g3, base, base + nc_length - 1);
+  base = base + nc_length;// make first exon
+  ex_length = asInteger(rlnorm(1, log(50), log(2))) + 1;
+  initializeGenomicElement(g1, base, base + ex_length - 1);
+  base = base + ex_length;
+  // make additional intron-exon pairs
+  do
+  {
+   in_length = asInteger(rlnorm(1, log(100), log(1.5))) + 10; initializeGenomicElement(g2, base, base + in_length - 1); base = base + in_length;
+   ex_length = asInteger(rlnorm(1, log(50), log(2))) + 1; initializeGenomicElement(g1, base, base + ex_length - 1); base = base + ex_length;
+  }
+  while (runif(1) < 0.8); // 20% probability of stopping
+}
+// final non-coding region
+nc_length = rdunif(1, 100, 5000);
+initializeGenomicElement(g3, base, base + nc_length - 1);// single recombination rate
+initializeRecombinationRate(5e-10);
+}
+//burn in
+1 early() {
+ defineConstant("simnum", getSeed());
+ setSeed(getSeed() + 27126);
+ sim.addSubpop("p1", asInteger(10000));
+ m1.convertToSubstitution = T;
+}
+100000 { // after burn-in, split populations into new pop: p2
+ sim.addSubpopSplit("p2", asInteger(10000), p1);
+ p2.setSubpopulationSize(asInteger(10000));
+ p2.setCloningRate(0.99);//set 0.98 or 0
+ // this also isnt necessary, but sets the migration rates to 0
+}
+
